@@ -14,21 +14,29 @@ source weatherflow-collector_details.sh
 ## Set Variables from Environmental Variables
 ##
 
+collector_type=$WEATHERFLOW_COLLECTOR_COLLECTOR_TYPE
 debug=$WEATHERFLOW_COLLECTOR_DEBUG
 debug_curl=$WEATHERFLOW_COLLECTOR_DEBUG_CURL
+disable_host_performance=$WEATHERFLOW_COLLECTOR_DISABLE_HOST_PERFORMANCE
+disable_local_udp=$WEATHERFLOW_COLLECTOR_DISABLE_LOCAL_UDP
+disable_remote_forecast=$WEATHERFLOW_COLLECTOR_DISABLE_REMOTE_FORECAST
+disable_remote_rest=$WEATHERFLOW_COLLECTOR_DISABLE_REMOTE_REST
+disable_remote_socket=$WEATHERFLOW_COLLECTOR_DISABLE_REMOTE_SOCKET
+export_days=$WEATHERFLOW_COLLECTOR_EXPORT_DAYS
 function=$WEATHERFLOW_COLLECTOR_FUNCTION
 healthcheck=$WEATHERFLOW_COLLECTOR_HEALTHCHECK
 host_hostname=$WEATHERFLOW_COLLECTOR_HOST_HOSTNAME
+import_days=$WEATHERFLOW_COLLECTOR_IMPORT_DAYS
+influxdb_bucket=$WEATHERFLOW_COLLECTOR_INFLUXDB_BUCKET
+influxdb_org=$WEATHERFLOW_COLLECTOR_INFLUXDB_ORG
+influxdb_token=$WEATHERFLOW_COLLECTOR_INFLUXDB_TOKEN
+influxdb_url=$WEATHERFLOW_COLLECTOR_INFLUXDB_URL
 logcli_host_url=$WEATHERFLOW_COLLECTOR_LOGCLI_URL
-public_name=$WEATHERFLOW_COLLECTOR_PUBLIC_NAME
+loki_client_url=$WEATHERFLOW_COLLECTOR_LOKI_CLIENT_URL
 station_id=$WEATHERFLOW_COLLECTOR_STATION_ID
 station_name=$WEATHERFLOW_COLLECTOR_STATION_NAME
-token=$WEATHERFLOW_COLLECTOR_TOKEN
-
-IFS=',' read -r -a loki_client_url <<< "$WEATHERFLOW_COLLECTOR_LOKI_CLIENT_URL"
-IFS=',' read -r -a influxdb_password <<< "$WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD"
-IFS=',' read -r -a influxdb_url <<< "$WEATHERFLOW_COLLECTOR_INFLUXDB_URL"
-IFS=',' read -r -a influxdb_username <<< "$WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME"
+threads=$WEATHERFLOW_COLLECTOR_THREADS
+weatherflow_token=$WEATHERFLOW_COLLECTOR_TOKEN
 
 ##
 ## Set Specific Variables
@@ -47,16 +55,27 @@ Debug Environmental Variables
 collector_type=${collector_type}
 debug=${debug}
 debug_curl=${debug_curl}
+disable_host_performance=${disable_host_performance}
+disable_local_udp=${disable_local_udp}
+disable_remote_forecast=${disable_remote_forecast}
+disable_remote_rest=${disable_remote_rest}
+disable_remote_socket=${disable_remote_socket}
+export_days=${export_days}
 function=${function}
 healthcheck=${healthcheck}
 host_hostname=${host_hostname}
-influxdb_password=${influxdb_password}
+import_days=${import_days}
+influxdb_bucket=${influxdb_bucket}
+influxdb_org=${influxdb_org}
+influxdb_token=${influxdb_token}
 influxdb_url=${influxdb_url}
-influxdb_username=${influxdb_username}
 logcli_host_url=${logcli_host_url}
 loki_client_url=${loki_client_url}
-token=${token}
-weatherflow_collector_version=${weatherflow_collector_version}"
+station_id=${station_id}
+station_name=${station_name}
+threads=${threads}
+weatherflow_token=${weatherflow_token}
+"
 
 fi
 
@@ -65,12 +84,6 @@ fi
 ##
 
 #if [ -n "${influxdb_url}" ]; then influxdb_url="${influxdb_url}&precision=s"; fi
-
-##
-## Curl Command
-##
-
-if [ "$debug_curl" == "true" ]; then curl=(  ); else curl=( --silent --output /dev/null --show-error --fail ); fi
 
 ##
 ## Start Reading in STDIN
@@ -242,8 +255,11 @@ if [ -n "$influxdb_url" ]
 
 then
 
-curl "${curl[@]}" -i -XPOST "${influxdb_url}" -u "${influxdb_username}":"${influxdb_password}" --data-binary "
-weatherflow_system_stats,collector_key=${collector_key},collector_type=${collector_type},duration_type="loki_push",host_hostname=${host_hostname},public_name=${public_name_escaped},source=${function},station_id=${station_id},station_name=${station_name_escaped} duration=${timer_loki_duration}"
+curl_message="weatherflow_system_stats,collector_key=${collector_key},collector_type=${collector_type},duration_type="loki_push",host_hostname=${host_hostname},public_name=${public_name_escaped},source=${function},station_id=${station_id},station_name=${station_name_escaped} duration=${timer_loki_duration}"
+
+
+
+curl_send_message
 
 fi
 fi
@@ -300,9 +316,10 @@ curl_message="$(echo "${curl_message}" | sed 's/,$//')"
 
 curl_message="${curl_message} ${time_epoch}000000000";
 
-#echo "${curl_message}"
 
-curl "${curl[@]}" -i -XPOST "${influxdb_url}" -u "${influxdb_username}":"${influxdb_password}" --data-binary "${curl_message}"
+
+curl_send_message
+
 
 fi
 fi
@@ -429,8 +446,13 @@ if [ -n "$influxdb_url" ]
 
 then
 
-curl "${curl[@]}" -i -XPOST "${influxdb_url}" -u "${influxdb_username}":"${influxdb_password}" --data-binary "
-weatherflow_system_stats,collector_key=${collector_key},collector_type=${collector_type},duration_type="loki_push",host_hostname=${host_hostname},public_name=${public_name_escaped},source=${function},station_id=${station_id},station_name=${station_name_escaped} duration=${timer_loki_duration}"
+
+curl_message="$weatherflow_system_stats,collector_key=${collector_key},collector_type=${collector_type},duration_type="loki_push",host_hostname=${host_hostname},public_name=${public_name_escaped},source=${function},station_id=${station_id},station_name=${station_name_escaped} duration=${timer_loki_duration}";
+
+
+
+curl_send_message
+
 
 fi
 fi
@@ -467,9 +489,8 @@ curl_message="$(echo "${curl_message}" | sed 's/,$//')"
 
 curl_message="${curl_message} ${time_epoch}000000000";
 
-#echo "${curl_message}"
+curl_send_message
 
-curl "${curl[@]}" -i -XPOST "${influxdb_url}" -u "${influxdb_username}":"${influxdb_password}" --data-binary "${curl_message}"
 
 fi
 fi
@@ -604,8 +625,10 @@ if [ "$debug" == "true" ]; then echo "${echo_bold}${echo_color_remote_socket}${c
 
 if [ -n "$influxdb_url" ]; then
 
-curl "${curl[@]}" -i -XPOST "${influxdb_url}" -u "${influxdb_username}":"${influxdb_password}" --data-binary "
-weatherflow_system_stats,collector_key=${collector_key},collector_type=${collector_type},duration_type="loki_push",host_hostname=${host_hostname},public_name=${public_name_escaped},source=${function},station_id=${station_id},station_name=${station_name_escaped} duration=${timer_loki_duration}"
+curl_message="weatherflow_system_stats,collector_key=${collector_key},collector_type=${collector_type},duration_type="loki_push",host_hostname=${host_hostname},public_name=${public_name_escaped},source=${function},station_id=${station_id},station_name=${station_name_escaped} duration=${timer_loki_duration}";
+
+curl_send_message
+
 
 fi
 fi
@@ -647,9 +670,10 @@ curl_message="$(echo "${curl_message}" | sed 's/,$//')"
 
 curl_message="${curl_message} ${time_epoch}000000000";
 
-#echo "${curl_message}"
 
-curl "${curl[@]}" -i -XPOST "${influxdb_url}" -u "${influxdb_username}":"${influxdb_password}" --data-binary "${curl_message}"
+
+curl_send_message
+
 
 fi
 fi
@@ -762,8 +786,9 @@ if [ -n "$influxdb_url" ]
 
 then
 
-curl "${curl[@]}" -i -XPOST "${influxdb_url}" -u "${influxdb_username}":"${influxdb_password}" --data-binary "
-weatherflow_system_stats,collector_key=${collector_key},collector_type=${collector_type},duration_type="loki_push",host_hostname=${host_hostname},public_name=${public_name_escaped},source=${function},station_id=${station_id},station_name=${station_name_escaped} duration=${timer_loki_duration}"
+curl_message="weatherflow_system_stats,collector_key=${collector_key},collector_type=${collector_type},duration_type="loki_push",host_hostname=${host_hostname},public_name=${public_name_escaped},source=${function},station_id=${station_id},station_name=${station_name_escaped} duration=${timer_loki_duration}";
+
+curl_send_message
 
 fi
 fi
@@ -794,9 +819,7 @@ curl_message="$(echo "${curl_message}" | sed 's/,$//')"
 
 curl_message="${curl_message} ${time_epoch}000000000";
 
-#echo "${curl_message}"
-
-curl "${curl[@]}" -i -XPOST "${influxdb_url}" -u "${influxdb_username}":"${influxdb_password}" --data-binary "${curl_message}"
+curl_send_message
 
 fi
 fi
@@ -909,8 +932,9 @@ if [ -n "$influxdb_url" ]
 
 then
 
-curl "${curl[@]}" -i -XPOST "${influxdb_url}" -u "${influxdb_username}":"${influxdb_password}" --data-binary "
-weatherflow_system_stats,collector_key=${collector_key},collector_type=${collector_type},duration_type="loki_push",host_hostname=${host_hostname},public_name=${public_name_escaped},source=${function},station_id=${station_id},station_name=${station_name_escaped} duration=${timer_loki_duration}"
+curl_message="weatherflow_system_stats,collector_key=${collector_key},collector_type=${collector_type},duration_type="loki_push",host_hostname=${host_hostname},public_name=${public_name_escaped},source=${function},station_id=${station_id},station_name=${station_name_escaped} duration=${timer_loki_duration}";
+
+curl_send_message
 
 fi
 fi
@@ -941,9 +965,10 @@ curl_message="$(echo "${curl_message}" | sed 's/,$//')"
 
 curl_message="${curl_message} ${time_epoch}000000000";
 
-#echo "${curl_message}"
 
-curl "${curl[@]}" -i -XPOST "${influxdb_url}" -u "${influxdb_username}":"${influxdb_password}" --data-binary "${curl_message}"
+
+curl_send_message
+
 
 fi
 fi
@@ -1053,8 +1078,10 @@ if [ -n "$influxdb_url" ]
 
 then
 
-curl "${curl[@]}" -i -XPOST "${influxdb_url}" -u "${influxdb_username}":"${influxdb_password}" --data-binary "
-weatherflow_system_stats,collector_key=${collector_key},collector_type=${collector_type},duration_type="loki_push",host_hostname=${host_hostname},public_name=${public_name_escaped},source=${function},station_id=${station_id},station_name=${station_name_escaped} duration=${timer_loki_duration}"
+curl_message="weatherflow_system_stats,collector_key=${collector_key},collector_type=${collector_type},duration_type="loki_push",host_hostname=${host_hostname},public_name=${public_name_escaped},source=${function},station_id=${station_id},station_name=${station_name_escaped} duration=${timer_loki_duration}";
+
+curl_send_message
+
 
 fi
 fi
@@ -1083,9 +1110,9 @@ if [ "${time_epoch}" != "null" ]; then curl_message="${curl_message}time_epoch=$
 
 curl_message="${curl_message} ${time_epoch}000000000";
 
-#echo "${curl_message}"
 
-curl "${curl[@]}" -i -XPOST "${influxdb_url}" -u "${influxdb_username}":"${influxdb_password}" --data-binary "${curl_message}"
+
+curl_send_message
 
 fi
 fi
@@ -1192,8 +1219,9 @@ if [ -n "$influxdb_url" ]
 
 then
 
-curl "${curl[@]}" -i -XPOST "${influxdb_url}" -u "${influxdb_username}":"${influxdb_password}" --data-binary "
-weatherflow_system_stats,collector_key=${collector_key},collector_type=${collector_type},duration_type="loki_push",host_hostname=${host_hostname},public_name=${public_name_escaped},source=${function},station_id=${station_id},station_name=${station_name_escaped} duration=${timer_loki_duration}"
+curl_message="weatherflow_system_stats,collector_key=${collector_key},collector_type=${collector_type},duration_type="loki_push",host_hostname=${host_hostname},public_name=${public_name_escaped},source=${function},station_id=${station_id},station_name=${station_name_escaped} duration=${timer_loki_duration}";
+
+curl_send_message
 
 fi
 fi
@@ -1228,9 +1256,9 @@ curl_message="$(echo "${curl_message}" | sed 's/,$//')"
 
 curl_message="${curl_message} ${timestamp}000000000";
 
-#echo "${curl_message}"
 
-curl "${curl[@]}" -i -XPOST "${influxdb_url}" -u "${influxdb_username}":"${influxdb_password}" --data-binary "${curl_message}"
+
+curl_send_message
 
 fi
 fi
@@ -1362,8 +1390,9 @@ if [ -n "$influxdb_url" ]
 
 then
 
-curl "${curl[@]}" -i -XPOST "${influxdb_url}" -u "${influxdb_username}":"${influxdb_password}" --data-binary "
-weatherflow_system_stats,collector_key=${collector_key},collector_type=${collector_type},duration_type="loki_push",host_hostname=${host_hostname},public_name=${public_name_escaped},source=${function},station_id=${station_id},station_name=${station_name_escaped} duration=${timer_loki_duration}"
+curl_message="weatherflow_system_stats,collector_key=${collector_key},collector_type=${collector_type},duration_type="loki_push",host_hostname=${host_hostname},public_name=${public_name_escaped},source=${function},station_id=${station_id},station_name=${station_name_escaped} duration=${timer_loki_duration}";
+
+curl_send_message
 
 fi
 fi
@@ -1406,9 +1435,9 @@ curl_message="$(echo "${curl_message}" | sed 's/,$//')"
 
 curl_message="${curl_message} ${timestamp}000000000";
 
-#echo "${curl_message}"
 
-curl "${curl[@]}" -i -XPOST "${influxdb_url}" -u "${influxdb_username}":"${influxdb_password}" --data-binary "${curl_message}"
+
+curl_send_message
 
 fi
 fi

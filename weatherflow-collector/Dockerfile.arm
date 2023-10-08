@@ -1,4 +1,4 @@
-FROM grafana/promtail:2.3.0
+FROM grafana/promtail:2.9.1
 
 RUN apt-get update && apt-get install -y bash bc coreutils curl dumb-init jq net-tools procps python sysstat vim
 
@@ -26,17 +26,17 @@ start-remote-socket.sh \
 start.sh \
 weatherflow-collector_details.sh \
 weatherflow-listener.py \
-websocat_arm-linux-static \
+websocat.arm-unknown-linux-musleabi \
 /weatherflow-collector/
 
 WORKDIR /weatherflow-collector
 
 RUN chmod a+x *.sh
 
-RUN chmod +x logcli-linux-arm websocat_arm-linux-static
+RUN chmod +x logcli-linux-arm websocat.arm-unknown-linux-musleabi
 
 RUN mv logcli-linux-arm logcli
-RUN mv websocat_arm-linux-static websocat
+RUN mv websocat.arm-unknown-linux-musleabi websocat
 
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
 

@@ -19,9 +19,10 @@ debug_curl=$WEATHERFLOW_COLLECTOR_DEBUG_CURL
 healthcheck=$WEATHERFLOW_COLLECTOR_HEALTHCHECK
 host_hostname=$WEATHERFLOW_COLLECTOR_HOST_HOSTNAME
 import_days=$WEATHERFLOW_COLLECTOR_IMPORT_DAYS
-influxdb_password=$WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD
+influxdb_bucket=$WEATHERFLOW_COLLECTOR_INFLUXDB_BUCKET
+influxdb_org=$WEATHERFLOW_COLLECTOR_INFLUXDB_ORG
+influxdb_token=$WEATHERFLOW_COLLECTOR_INFLUXDB_TOKEN
 influxdb_url=$WEATHERFLOW_COLLECTOR_INFLUXDB_URL
-influxdb_username=$WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME
 token=$WEATHERFLOW_COLLECTOR_TOKEN
 station_id=$WEATHERFLOW_COLLECTOR_STATION_ID
 
@@ -47,9 +48,10 @@ function=${function}
 healthcheck=${healthcheck}
 host_hostname=${host_hostname}
 import_days=${import_days}
-influxdb_password=${influxdb_password}
+influxdb_bucket=${influxdb_bucket}
+influxdb_org=${influxdb_org}
+influxdb_token=${influxdb_token}
 influxdb_url=${influxdb_url}
-influxdb_username=${influxdb_username}
 logcli_host_url=${logcli_host_url}
 loki_client_url=${loki_client_url}
 station_id=${station_id}
@@ -58,13 +60,6 @@ weatherflow_collector_version=${weatherflow_collector_version}"
 
 fi
 
-
-
-##
-## Curl Command
-##
-
-if [ "$debug_curl" == "true" ]; then curl=(  ); else curl=( --silent --show-error --fail ); fi
 
 ##
 ## Get Stations IDs from Token
@@ -121,7 +116,7 @@ if [ "$debug" == "true" ]; then echo "${echo_bold}${echo_color_remote_import}${c
 
 if [ -n "${device_ar[${device_number}]}" ]; then
 #echo "station_number: ${station_number} station_id: ${station_id} device_number: ${device_number} device_ar: ${device_ar[${device_number}]}"
-echo "${body_station}" |jq -r '.stations[] | select(.station_id == '"${station_id}"') | to_entries | .[4,5,6,7,8,9,12] | .key + "=" + "\"" + ( .value|tostring ) + "\""' > remote-import-device_id-"${device_ar[${device_number}]}"-lookup.txt
+echo "${body_station}" |jq -r '.stations[] | select(.station_id == '"${station_id}"') | to_entries | .[0,1,2,3,4,5,6] | .key + "=" + "\"" + ( .value|tostring ) + "\""' > remote-import-device_id-"${device_ar[${device_number}]}"-lookup.txt
 echo "elevation=\"$(echo "${body_station}" | jq -r '.stations[] | select(.station_id == '"${station_id}"') | .station_meta.elevation')\"" >> remote-import-device_id-"${device_ar[${device_number}]}"-lookup.txt
 echo "hub_sn=\"$(echo "${body_station}" | jq -r '.stations[] | select(.station_id == '"${station_id}"') | .devices[] | select(.device_type == "HB") | .serial_number')\"" >> remote-import-device_id-"${device_ar[${device_number}]}"-lookup.txt
 echo "https://swd.weatherflow.com/swd/rest/observations/device/${device_ar[${device_number}]}?token=${token}" >> remote-import-url_"${station_id}"-station_list.txt
@@ -130,7 +125,7 @@ fi
 
 if [ -n "${device_sk[${device_number}]}" ]; then
 #echo "station_number: ${station_number} station_id: ${station_id} device_number: ${device_number} device_sk: ${device_sk[${device_number}]}"
-echo "${body_station}" |jq -r '.stations[] | select(.station_id == '"${station_id}"') | to_entries | .[4,5,6,7,8,9,12] | .key + "=" + "\"" + ( .value|tostring ) + "\""' > remote-import-device_id-"${device_sk[${device_number}]}"-lookup.txt
+echo "${body_station}" |jq -r '.stations[] | select(.station_id == '"${station_id}"') | to_entries | .[0,1,2,3,4,5,6] | .key + "=" + "\"" + ( .value|tostring ) + "\""' > remote-import-device_id-"${device_sk[${device_number}]}"-lookup.txt
 echo "elevation=\"$(echo "${body_station}" | jq -r '.stations[] | select(.station_id == '"${station_id}"') | .station_meta.elevation')\"" >> remote-import-device_id-"${device_sk[${device_number}]}"-lookup.txt
 echo "hub_sn=\"$(echo "${body_station}" | jq -r '.stations[] | select(.station_id == '"${station_id}"') | .devices[] | select(.device_type == "HB") | .serial_number')\"" >> remote-import-device_id-"${device_sk[${device_number}]}"-lookup.txt
 echo "https://swd.weatherflow.com/swd/rest/observations/device/${device_sk[${device_number}]}?token=${token}" >> remote-import-url_"${station_id}"-station_list.txt
@@ -138,7 +133,7 @@ fi
 
 if [ -n "${device_st[${device_number}]}" ]; then
 #echo "station_number: ${station_number} station_id: ${station_id} device_number: ${device_number} device_st: ${device_st[${device_number}]}"
-echo "${body_station}" |jq -r '.stations[] | select(.station_id == '"${station_id}"') | to_entries | .[4,5,6,7,8,9,12] | .key + "=" + "\"" + ( .value|tostring ) + "\""' > remote-import-device_id-"${device_st[${device_number}]}"-lookup.txt
+echo "${body_station}" |jq -r '.stations[] | select(.station_id == '"${station_id}"') | to_entries | .[0,1,2,3,4,5,6] | .key + "=" + "\"" + ( .value|tostring ) + "\""' > remote-import-device_id-"${device_st[${device_number}]}"-lookup.txt
 echo "elevation=\"$(echo "${body_station}" | jq -r '.stations[] | select(.station_id == '"${station_id}"') | .station_meta.elevation')\"" >> remote-import-device_id-"${device_st[${device_number}]}"-lookup.txt
 echo "hub_sn=\"$(echo "${body_station}" | jq -r '.stations[] | select(.station_id == '"${station_id}"') | .devices[] | select(.device_type == "HB") | .serial_number')\"" >> remote-import-device_id-"${device_st[${device_number}]}"-lookup.txt
 echo "https://swd.weatherflow.com/swd/rest/observations/device/${device_st[${device_number}]}?token=${token}" >> remote-import-url_"${station_id}"-station_list.txt

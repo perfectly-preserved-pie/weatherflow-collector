@@ -52,15 +52,16 @@ function=$WEATHERFLOW_COLLECTOR_FUNCTION
 healthcheck=$WEATHERFLOW_COLLECTOR_HEALTHCHECK
 host_hostname=$WEATHERFLOW_COLLECTOR_HOST_HOSTNAME
 import_days=$WEATHERFLOW_COLLECTOR_IMPORT_DAYS
-influxdb_password=$WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD
+influxdb_bucket=$WEATHERFLOW_COLLECTOR_INFLUXDB_BUCKET
+influxdb_org=$WEATHERFLOW_COLLECTOR_INFLUXDB_ORG
+influxdb_token=$WEATHERFLOW_COLLECTOR_INFLUXDB_TOKEN
 influxdb_url=$WEATHERFLOW_COLLECTOR_INFLUXDB_URL
-influxdb_username=$WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME
 logcli_host_url=$WEATHERFLOW_COLLECTOR_LOGCLI_URL
 loki_client_url=$WEATHERFLOW_COLLECTOR_LOKI_CLIENT_URL
 station_id=$WEATHERFLOW_COLLECTOR_STATION_ID
 station_name=$WEATHERFLOW_COLLECTOR_STATION_NAME
 threads=$WEATHERFLOW_COLLECTOR_THREADS
-token=$WEATHERFLOW_COLLECTOR_TOKEN
+weatherflow_token=$WEATHERFLOW_COLLECTOR_TOKEN
 
 ##
 ## State purposful details
@@ -97,16 +98,17 @@ function=${function}
 healthcheck=${healthcheck}
 host_hostname=${host_hostname}
 import_days=${import_days}
-influxdb_password=${influxdb_password}
+influxdb_bucket=${influxdb_bucket}
+influxdb_org=${influxdb_org}
+influxdb_token=${influxdb_token}
 influxdb_url=${influxdb_url}
-influxdb_username=${influxdb_username}
 logcli_host_url=${logcli_host_url}
 loki_client_url=${loki_client_url}
 station_id=${station_id}
 station_name=${station_name}
 threads=${threads}
-token=${token}
-weatherflow_collector_version=${weatherflow_collector_version}"
+weatherflow_collector_version=${weatherflow_collector_version}
+weatherflow_token=${weatherflow_token}"
 
 fi
 
@@ -115,12 +117,6 @@ fi
 ##
 
 #if [ -n "${influxdb_url}" ]; then influxdb_url="${influxdb_url}&precision=s"; fi
-
-##
-## Curl Command
-##
-
-if [ "$debug_curl" == "true" ]; then curl=(  ); else curl=( --silent --output /dev/null --show-error --fail ); fi
 
 ##
 ##  ::::::::   ::::::::  :::        :::        :::::::::: :::::::: ::::::::::: ::::::::  :::::::::  
@@ -344,8 +340,11 @@ echo "${echo_normal}
 ## Send Timer Metrics To InfluxDB
 ##
 
-curl "${curl[@]}" -i -XPOST "${influxdb_url}" -u "${influxdb_username}":"${influxdb_password}" --data-binary "
-weatherflow_system_stats,collector_type=${collector_type},source=${function},station_name=${station_name_escaped} duration=${import_duration}"
+
+curl_message="weatherflow_system_stats,collector_type=${collector_type},source=${function},station_name=${station_name_escaped} duration=${import_duration}"
+
+curl_send_message
+
 
 done
 
@@ -459,8 +458,9 @@ echo "${echo_normal}
 ## Send Timer Metrics To InfluxDB
 ##
 
-curl "${curl[@]}" -i -XPOST "${influxdb_url}" -u "${influxdb_username}":"${influxdb_password}" --data-binary "
-weatherflow_system_stats,collector_type=${collector_type},source=${function},station_name=${station_name_escaped} duration=${import_duration}"
+curl_message="weatherflow_system_stats,collector_type=${collector_type},source=${function},station_name=${station_name_escaped} duration=${import_duration}"
+
+curl_send_message
 
 done
 
@@ -616,8 +616,10 @@ echo "${echo_normal}
 ## Send Timer Metrics To InfluxDB
 ##
 
-curl "${curl[@]}" -i -XPOST "${influxdb_url}" -u "${influxdb_username}":"${influxdb_password}" --data-binary "
-weatherflow_system_stats,collector_type=${collector_type},source=${function},station_name=${station_name_escaped} duration=${import_duration}"
+
+curl_message="weatherflow_system_stats,collector_type=${collector_type},source=${function},station_name=${station_name_escaped} duration=${import_duration}"
+
+curl_send_message
 
 done
 
@@ -674,31 +676,13 @@ then
 
 if [ -z "${export_days}" ]; then echo "${echo_bold}${echo_color_weatherflow}remote-export:${echo_normal} ${echo_bold}WEATHERFLOW_COLLECTOR_EXPORT_DAYS${echo_normal} variable was not set. Setting defaults: ${echo_bold}10${echo_normal} days"; export_days="10"; export WEATHERFLOW_COLLECTOR_EXPORT_DAYS="10"; fi
 
-url_stations="https://swd.weatherflow.com/swd/rest/stations?token=${token}"
+url_stations="https://swd.weatherflow.com/swd/rest/stations?token=${weatherflow_token}"
 
 #echo "url_stations=${url_stations}"
 
-response_url_stations=$(curl -si -w "\n%{size_header},%{size_download}" "${url_stations}")
+response_station=$(curl -s "${url_stations}")
 
-##
-## Extract the response header size
-##
-
-header_size_stations=$(sed -n '$ s/^\([0-9]*\),.*$/\1/ p' <<< "${response_url_stations}")
-
-##
-## Extract the response body size
-##
-
-body_size_stations=$(sed -n '$ s/^.*,\([0-9]*\)$/\1/ p' <<< "${response_url_stations}")
-
-##
-## Extract the response body
-##
-
-body_station="${response_url_stations:${header_size_stations}:${body_size_stations}}"
-
-number_of_stations=$(echo "${body_station}" |jq '.stations | length')
+number_of_stations=$(echo "${response_station}" |jq '.stations | length')
 
 echo "${echo_bold}${echo_color_weatherflow}remote-export:${echo_normal} Number of Stations: ${echo_bold}${number_of_stations}${echo_normal}"
 
@@ -706,9 +690,9 @@ number_of_stations_minus_one=$((number_of_stations-1))
 
 for station_number in $(seq 0 $number_of_stations_minus_one) ; do
 
-station_name[$station_number]=$(echo "${body_station}" | jq -r .stations[$station_number].name)
-station_name_dc[$station_number]=$(echo "${body_station}" | jq -r .stations[$station_number].name | sed 's/ /\_/g' | sed 's/.*/\L&/' | sed 's|[<>,]||g')
-station_id[$station_number]=$(echo "${body_station}" | jq -r .stations[$station_number].station_id)
+station_name[$station_number]=$(echo "${response_station}" | jq -r .stations[$station_number].name)
+station_name_dc[$station_number]=$(echo "${response_station}" | jq -r .stations[$station_number].name | sed 's/ /\_/g' | sed 's/.*/\L&/' | sed 's|[<>,]||g')
+station_id[$station_number]=$(echo "${response_station}" | jq -r .stations[$station_number].station_id)
 
 done
 

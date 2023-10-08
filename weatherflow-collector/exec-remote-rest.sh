@@ -20,12 +20,13 @@ function=$WEATHERFLOW_COLLECTOR_FUNCTION
 healthcheck=$WEATHERFLOW_COLLECTOR_HEALTHCHECK
 host_hostname=$WEATHERFLOW_COLLECTOR_HOST_HOSTNAME
 import_days=$WEATHERFLOW_COLLECTOR_IMPORT_DAYS
-influxdb_password=$WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD
+influxdb_bucket=$WEATHERFLOW_COLLECTOR_INFLUXDB_BUCKET
+influxdb_org=$WEATHERFLOW_COLLECTOR_INFLUXDB_ORG
+influxdb_token=$WEATHERFLOW_COLLECTOR_INFLUXDB_TOKEN
 influxdb_url=$WEATHERFLOW_COLLECTOR_INFLUXDB_URL
-influxdb_username=$WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME
 logcli_host_url=$WEATHERFLOW_COLLECTOR_LOGCLI_URL
 loki_client_url=$WEATHERFLOW_COLLECTOR_LOKI_CLIENT_URL
-token=$WEATHERFLOW_COLLECTOR_TOKEN
+weatherflow_token=$WEATHERFLOW_COLLECTOR_TOKEN
 
 ##
 ## Set Specific Variables
@@ -48,12 +49,13 @@ function=${function}
 healthcheck=${healthcheck}
 host_hostname=${host_hostname}
 import_days=${import_days}
-influxdb_password=${influxdb_password}
+influxdb_bucket=${influxdb_bucket}
+influxdb_org=${influxdb_org}
+influxdb_token=${influxdb_token}
 influxdb_url=${influxdb_url}
-influxdb_username=${influxdb_username}
 logcli_host_url=${logcli_host_url}
 loki_client_url=${loki_client_url}
-token=${token}
+weatherflow_token=${weatherflow_token}
 weatherflow_collector_version=${weatherflow_collector_version}"
 
 fi
@@ -63,12 +65,6 @@ fi
 ##
 
 #if [ -n "${influxdb_url}" ]; then influxdb_url="${influxdb_url}&precision=s"; fi
-
-##
-## Curl Command
-##
-
-if [ "$debug_curl" == "true" ]; then curl=(  ); else curl=( --silent --output /dev/null --show-error --fail ); fi
 
 ##
 ## Start Reading in STDIN
@@ -84,6 +80,15 @@ echo "${line}"
 echo ""
 
 fi
+
+##
+## Check to see if we have value observations
+##
+
+observation_check=$(echo "${line}" | jq -r .status.status_message)
+
+if [ "${observation_check}" != "SUCCESS" ]; then eval "$(echo "${line}" | jq -r '. | to_entries | .[7,8,9] | .key + "=" + "\"" + ( .value|tostring ) + "\""')"; echo "No valid observations for public_name=${public_name},station_id=${station_id},station_name=${station_name}"; exit 1 < /dev/stdin; fi;
+
 
 ##
 ## Start Timer
@@ -137,10 +142,12 @@ if [ "$debug" == "true" ]; then echo "${echo_bold}${echo_color_remote_socket}${c
 
 if [ -n "$influxdb_url" ]; then
 
-curl "${curl[@]}" -i -XPOST "${influxdb_url}" -u "${influxdb_username}":"${influxdb_password}" --data-binary "
-weatherflow_system_stats,collector_key=${collector_key},collector_type=${collector_type},duration_type="loki_push",host_hostname=${host_hostname},public_name=${public_name_escaped},source=${function},station_id=${station_id},station_name=${station_name_escaped} duration=${timer_loki_duration}"
+curl_message="weatherflow_system_stats,collector_key=${collector_key},collector_type=${collector_type},duration_type="loki_push",host_hostname=${host_hostname},public_name=${public_name_escaped},source=${function},station_id=${station_id},station_name=${station_name_escaped} duration=${timer_loki_duration}";
+
+curl_send_message
 
 fi
+
 fi
 
 ##
@@ -264,33 +271,12 @@ curl_message="$(echo "${curl_message}" | sed 's/,$//')"
 
 curl_message="${curl_message} ${timestamp}000000000";
 
-#echo "${curl_message}"
 
-exec 3>&1
+#exec 3>&1
 
-curl_status_code=$(curl "${curl[@]}" -i -XPOST -w "%{http_code}" -o >(cat >&3) "${influxdb_url}" -u "${influxdb_username}":"${influxdb_password}" --data-binary "${curl_message}"
-
-)
-
-##
-## Health Check Function
-##
-
-if [ "$curl_status_code" == "204" ]; then health_check; fi
-
-##
-## Send CURL Metrics To InfluxDB
-##
-
-#if [ -n "$influxdb_url" ]; then
-
-#time_epoch=$(date +%s)
-
-#curl "${curl[@]}" -i -XPOST "${influxdb_url}" -u "${influxdb_username}":"${influxdb_password}" --data-binary "
-#weatherflow_system_stats,backend_function=obs,backend_status_code=${curl_status_code},backend_type=curl,collector_key=${collector_key},collector_type=${collector_type},host_hostname=${host_hostname},public_name=${public_name_escaped},source=${function},station_id=${station_id},station_name=${station_name_escaped} time_epoch=${time_epoch}000"
+curl_send_message
 
 
-#fi
 fi
 
 ##
@@ -306,10 +292,12 @@ if [ "$debug" == "true" ]; then echo "${echo_bold}${echo_color_remote_rest}${col
 ## Send Timer Metrics To InfluxDB
 ##
 
+
 if [ -n "$influxdb_url" ]; then
 
-curl "${curl[@]}" -i -XPOST "${influxdb_url}" -u "${influxdb_username}":"${influxdb_password}" --data-binary "
-weatherflow_system_stats,collector_key=${collector_key},collector_type=${collector_type},duration_type="observations",host_hostname=${host_hostname},public_name=${public_name_escaped},source=${function},station_id=${station_id},station_name=${station_name_escaped} duration=${observations_duration}"
+curl_message="weatherflow_system_stats,collector_key=${collector_key},collector_type=${collector_type},duration_type="observations",host_hostname=${host_hostname},public_name=${public_name_escaped},source=${function},station_id=${station_id},station_name=${station_name_escaped} duration=${observations_duration}";
+
+curl_send_message
 
 fi
 
@@ -317,6 +305,6 @@ fi
 ## Health Check Function
 ##
 
-if [ -z "$influxdb_url" ]; then health_check; fi
+if [ -n "$influxdb_url" ]; then health_check; fi
 
 done < /dev/stdin

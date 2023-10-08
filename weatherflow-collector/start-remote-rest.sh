@@ -21,13 +21,14 @@ function=$WEATHERFLOW_COLLECTOR_FUNCTION
 healthcheck=$WEATHERFLOW_COLLECTOR_HEALTHCHECK
 host_hostname=$WEATHERFLOW_COLLECTOR_HOST_HOSTNAME
 import_days=$WEATHERFLOW_COLLECTOR_IMPORT_DAYS
-influxdb_password=$WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD
+influxdb_bucket=$WEATHERFLOW_COLLECTOR_INFLUXDB_BUCKET
+influxdb_org=$WEATHERFLOW_COLLECTOR_INFLUXDB_ORG
+influxdb_token=$WEATHERFLOW_COLLECTOR_INFLUXDB_TOKEN
 influxdb_url=$WEATHERFLOW_COLLECTOR_INFLUXDB_URL
-influxdb_username=$WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME
 logcli_host_url=$WEATHERFLOW_COLLECTOR_LOGCLI_URL
 loki_client_url=$WEATHERFLOW_COLLECTOR_LOKI_CLIENT_URL
 rest_interval=$WEATHERFLOW_COLLECTOR_REST_INTERVAL
-token=$WEATHERFLOW_COLLECTOR_TOKEN
+weatherflow_token=$WEATHERFLOW_COLLECTOR_TOKEN
 
 ##
 ## Set Specific Variables
@@ -51,13 +52,14 @@ function=${function}
 healthcheck=${healthcheck}
 host_hostname=${host_hostname}
 import_days=${import_days}
-influxdb_password=${influxdb_password}
+influxdb_bucket=${influxdb_bucket}
+influxdb_org=${influxdb_org}
+influxdb_token=${influxdb_token}
 influxdb_url=${influxdb_url}
-influxdb_username=${influxdb_username}
 logcli_host_url=${logcli_host_url}
 loki_client_url=${loki_client_url}
 rest_interval=${rest_interval}
-token=${token}
+weatherflow_token=${weatherflow_token}
 weatherflow_collector_version=${weatherflow_collector_version}"
 
 fi
@@ -67,6 +69,12 @@ fi
 ##
 
 #if [ -n "${influxdb_url}" ]; then influxdb_url="${influxdb_url}&precision=s"; fi
+
+##
+## Curl Command
+##
+
+if [ "$debug_curl" == "true" ]; then curl=(  ); else curl=( --silent --show-error --fail ); fi
 
 ##
 ## Check for required intervals
@@ -87,53 +95,17 @@ if [ -z "${host_hostname}" ]; then echo "${echo_bold}${echo_color_remote_rest}${
 process_start
 
 ##
-## Curl Command
-##
-
-if [ "$debug_curl" == "true" ]; then curl=(  ); else curl=( --silent --show-error --fail ); fi
-
-##
 ## Get Stations IDs from Token
 ##
 
-url_stations="https://swd.weatherflow.com/swd/rest/stations?token=${token}"
+url_stations="https://swd.weatherflow.com/swd/rest/stations?token=${weatherflow_token}"
 
 #echo "url_stations=${url_stations}"
 
-response_url_stations=$(curl -si -w "\n%{size_header},%{size_download}" "${url_stations}")
+response_station=$(curl -s "${url_stations}")
 
-#echo ${response_url_stations}
-
-#response_url_forecasts=$(curl -si -w "\n%{size_header},%{size_download}" "${url_forecasts}")
-
-##
-## Extract the response header size
-##
-
-header_size_stations=$(sed -n '$ s/^\([0-9]*\),.*$/\1/ p' <<< "${response_url_stations}")
-
-##
-## Extract the response body size
-##
-
-body_size_stations=$(sed -n '$ s/^.*,\([0-9]*\)$/\1/ p' <<< "${response_url_stations}")
-
-##
-## Extract the response headers
-##
-
-#headers_station="${response_url_stations:0:${header_size_stations}}"
-
-##
-## Extract the response body
-##
-
-body_station="${response_url_stations:${header_size_stations}:${body_size_stations}}"
-
-#echo "${body_station}"
-
-number_of_stations=$(echo "${body_station}" |jq '.stations | length')
-station_ids=($(echo "${body_station}" | jq -r '.stations[].station_id | @sh') )
+number_of_stations=$(echo "${response_station}" |jq '.stations | length')
+station_ids=($(echo "${response_station}" | jq -r '.stations[].station_id | @sh') )
 
 #echo "Number of Stations: ${number_of_stations}"
 
@@ -146,7 +118,7 @@ for station_number in $(seq 0 $number_of_stations_minus_one) ; do
 #echo "Station Number Loop: $station_number"
 #echo "station_number: ${station_number} station_id: ${station_ids[${station_number}]}"
 
-echo "https://swd.weatherflow.com/swd/rest/observations/station/${station_ids[${station_number}]}?token=${token}" >> remote-rest-url_list.txt
+echo "https://swd.weatherflow.com/swd/rest/observations/station/${station_ids[${station_number}]}?token=${weatherflow_token}" >> remote-rest-url_list.txt
 
 done
 
@@ -165,7 +137,9 @@ do
 
 #echo "$line"
 
-curl "${curl[@]}" -w "\n" -X GET --header "Accept: application/json" "${line}" | ./exec-remote-rest.sh
+curl -s -w "\n" -X GET --header "Accept: application/json" "${line}" | ./exec-remote-rest.sh
+
+#curl "${curl[@]}" -w "\n" -X GET --header "Accept: application/json" "${line}" | ./exec-remote-rest.sh
 
 done < "$remote_rest_url"
 

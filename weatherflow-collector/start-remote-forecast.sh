@@ -22,13 +22,14 @@ function=$WEATHERFLOW_COLLECTOR_FUNCTION
 healthcheck=$WEATHERFLOW_COLLECTOR_HEALTHCHECK
 host_hostname=$WEATHERFLOW_COLLECTOR_HOST_HOSTNAME
 import_days=$WEATHERFLOW_COLLECTOR_IMPORT_DAYS
-influxdb_password=$WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD
+influxdb_bucket=$WEATHERFLOW_COLLECTOR_INFLUXDB_BUCKET
+influxdb_org=$WEATHERFLOW_COLLECTOR_INFLUXDB_ORG
+influxdb_token=$WEATHERFLOW_COLLECTOR_INFLUXDB_TOKEN
 influxdb_url=$WEATHERFLOW_COLLECTOR_INFLUXDB_URL
-influxdb_username=$WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME
 logcli_host_url=$WEATHERFLOW_COLLECTOR_LOGCLI_URL
 loki_client_url=$WEATHERFLOW_COLLECTOR_LOKI_CLIENT_URL
 threads=$WEATHERFLOW_COLLECTOR_THREADS
-token=$WEATHERFLOW_COLLECTOR_TOKEN
+weatherflow_token=$WEATHERFLOW_COLLECTOR_TOKEN
 
 ##
 ## Set Specific Variables
@@ -57,9 +58,10 @@ healthcheck=${healthcheck}
 host_hostname=${host_hostname}
 hub_sn=${hub_sn}
 import_days=${import_days}
-influxdb_password=${influxdb_password}
+influxdb_bucket=${influxdb_bucket}
+influxdb_org=${influxdb_org}
+influxdb_token=${influxdb_token}
 influxdb_url=${influxdb_url}
-influxdb_username=${influxdb_username}
 latitude=${latitude}
 logcli_host_url=${logcli_host_url}
 loki_client_url=${loki_client_url}
@@ -70,7 +72,7 @@ station_id=${station_id}
 station_name=${station_name}
 threads=${threads}
 timezone=${timezone}
-token=${token}"
+weatherflow_token=${weatherflow_token}"
 
 fi
 
@@ -93,45 +95,17 @@ if [ -z "${forecast_interval}" ] && [ "$collector_type" == "remote-forecast" ]; 
 process_start
 
 ##
-## Curl Command
-##
-
-if [ "$debug_curl" == "true" ]; then curl=(  ); else curl=( --silent --show-error --fail ); fi
-
-##
 ## Get Stations IDs from Token
 ##
 
-url_stations="https://swd.weatherflow.com/swd/rest/stations?token=${token}"
+url_stations="https://swd.weatherflow.com/swd/rest/stations?token=${weatherflow_token}"
 
 #echo "url_stations=${url_stations}"
 
-response_url_stations=$(curl -si -w "\n%{size_header},%{size_download}" "${url_stations}")
+response_station=$(curl -s "${url_stations}")
 
-#echo ${response_url_stations}
-
-##
-## Extract the response header size
-##
-
-header_size_stations=$(sed -n '$ s/^\([0-9]*\),.*$/\1/ p' <<< "${response_url_stations}")
-
-##
-## Extract the response body size
-##
-
-body_size_stations=$(sed -n '$ s/^.*,\([0-9]*\)$/\1/ p' <<< "${response_url_stations}")
-
-##
-## Extract the response body
-##
-
-body_station="${response_url_stations:${header_size_stations}:${body_size_stations}}"
-
-#echo "${body_station}"
-
-number_of_stations=$(echo "${body_station}" |jq '.stations | length')
-station_ids=($(echo "${body_station}" | jq -r '.stations[].station_id | @sh') )
+number_of_stations=$(echo "${response_station}" |jq '.stations | length')
+station_ids=($(echo "${response_station}" | jq -r '.stations[].station_id | @sh') )
 
 #echo "Number of Stations: ${number_of_stations}"
 
@@ -141,15 +115,15 @@ number_of_stations_minus_one=$((number_of_stations-1))
 
 for station_number in $(seq 0 $number_of_stations_minus_one); do
 
-echo "https://swd.weatherflow.com/swd/rest/better_forecast?station_id=${station_ids[${station_number}]}&token=${token},${station_ids[${station_number}]}" >> remote-forecast-url_station_list.txt
+echo "https://swd.weatherflow.com/swd/rest/better_forecast?station_id=${station_ids[${station_number}]}&token=${weatherflow_token},${station_ids[${station_number}]}" >> remote-forecast-url_station_list.txt
 
-echo "hub_sn=\"$(echo "${body_station}" | jq -r '.stations['"${station_number}"'].devices[] | select(.device_type == "HB") | .serial_number')\"" > remote-forecast-station_id-"${station_ids[${station_number}]}"-lookup.txt
-echo "device_id=\"$(echo "${body_station}" | jq -r '.stations['"${station_number}"'].devices[] | select(.device_type == "HB") | .device_id')\"" >> remote-forecast-station_id-"${station_ids[${station_number}]}"-lookup.txt
+echo "hub_sn=\"$(echo "${response_station}" | jq -r '.stations['"${station_number}"'].devices[] | select(.device_type == "HB") | .serial_number')\"" > remote-forecast-station_id-"${station_ids[${station_number}]}"-lookup.txt
+echo "device_id=\"$(echo "${response_station}" | jq -r '.stations['"${station_number}"'].devices[] | select(.device_type == "HB") | .device_id')\"" >> remote-forecast-station_id-"${station_ids[${station_number}]}"-lookup.txt
 
 
-echo "${body_station}" | jq -r '.stations['"${station_number}"'] | to_entries | .[4,5,6,7,8,9,12] | .key + "=" + "\"" + ( .value|tostring ) + "\""' >> remote-forecast-station_id-"${station_ids[${station_number}]}"-lookup.txt
+echo "${response_station}" | jq -r '.stations['"${station_number}"'] | to_entries | .[4,5,6,7,8,9,12] | .key + "=" + "\"" + ( .value|tostring ) + "\""' >> remote-forecast-station_id-"${station_ids[${station_number}]}"-lookup.txt
 
-echo "elevation=\"$(echo "${body_station}" |jq -r '.stations['"${station_number}"'].station_meta.elevation')\"" >> remote-forecast-station_id-"${station_ids[${station_number}]}"-lookup.txt
+echo "elevation=\"$(echo "${response_station}" |jq -r '.stations['"${station_number}"'].station_meta.elevation')\"" >> remote-forecast-station_id-"${station_ids[${station_number}]}"-lookup.txt
 
 done
 
@@ -177,7 +151,7 @@ before=$(date +%s%N)
 
 ##
 ## Run the hourly forecasts every 15 minutes at a random quarter hour offset
-## This help (kind of) stagger usge if there is more than one Forecast
+## This help (kind of) stagger usage if there are more than one Forecast
 ## container running
 ##
 
@@ -215,7 +189,7 @@ while IFS=, read -r lookup_forecast_url lookup_station_id; do
 
 if [ "$debug" == "true" ]; then echo "${echo_bold}${echo_color_remote_forecast}${collector_type}:${echo_normal} $(date) - lookup_forecast_url: ${lookup_forecast_url} lookup_station_id: ${lookup_station_id}"; fi
 
-curl "${curl[@]}" -w "\n" -X GET --header "Accept: application/json" "${lookup_forecast_url}" | WEATHERFLOW_COLLECTOR_HOURLY_FORECAST_RUN=${hourly_time_build_check_flag} WEATHERFLOW_COLLECTOR_STATION_ID="${lookup_station_id}" ./exec-remote-forecast.sh
+curl -s -w "\n" -X GET --header "Accept: application/json" "${lookup_forecast_url}" | WEATHERFLOW_COLLECTOR_HOURLY_FORECAST_RUN=${hourly_time_build_check_flag} WEATHERFLOW_COLLECTOR_STATION_ID="${lookup_station_id}" ./exec-remote-forecast.sh
 
 done < ${remote_forecast_url}
 

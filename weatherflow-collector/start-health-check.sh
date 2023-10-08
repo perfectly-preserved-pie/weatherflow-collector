@@ -14,6 +14,9 @@ source weatherflow-collector_details.sh
 ## Set Variables from Environmental Variables
 ##
 
+
+
+
 debug=$WEATHERFLOW_COLLECTOR_DEBUG
 debug_curl=$WEATHERFLOW_COLLECTOR_DEBUG_CURL
 debug_sleeping=$WEATHERFLOW_COLLECTOR_DEBUG_SLEEPING
@@ -21,6 +24,9 @@ function=$WEATHERFLOW_COLLECTOR_FUNCTION
 healthcheck=$WEATHERFLOW_COLLECTOR_HEALTHCHECK
 healthcheck_interval=$WEATHERFLOW_COLLECTOR_HEALTHCHECK_INTERVAL
 host_hostname=$WEATHERFLOW_COLLECTOR_HOST_HOSTNAME
+influxdb_bucket=$WEATHERFLOW_COLLECTOR_INFLUXDB_BUCKET
+influxdb_org=$WEATHERFLOW_COLLECTOR_INFLUXDB_ORG
+influxdb_token=$WEATHERFLOW_COLLECTOR_INFLUXDB_TOKEN
 influxdb_url=$WEATHERFLOW_COLLECTOR_INFLUXDB_URL
 
 ##
@@ -43,8 +49,12 @@ debug_curl=${debug_curl}
 debug_sleeping=${debug_sleeping}
 function=${function}
 healthcheck=${healthcheck}
-host_hostname=${host_hostname}
 healthcheck_interval=${healthcheck_interval}
+host_hostname=${host_hostname}
+influxdb_bucket=${influxdb_bucket}
+influxdb_org=${influxdb_org}
+influxdb_token=${influxdb_token}
+influxdb_url=${influxdb_url}
 weatherflow_collector_version=${weatherflow_collector_version}"
 
 fi
@@ -70,12 +80,6 @@ if [ -z "${host_hostname}" ]; then echo "${echo_bold}${echo_color_health_check}$
 ##
 
 process_start
-
-##
-## Curl Command
-##
-
-if [ "$debug_curl" == "true" ]; then curl=(  ); else curl=( --silent --show-error --fail ); fi
 
 ##
 ## Sleep for 60 seconds while we wait for everything to startup

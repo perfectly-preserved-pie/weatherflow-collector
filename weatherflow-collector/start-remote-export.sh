@@ -22,7 +22,7 @@ export_days=$WEATHERFLOW_COLLECTOR_EXPORT_DAYS
 influxdb_password=$WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD
 influxdb_url=$WEATHERFLOW_COLLECTOR_INFLUXDB_URL
 influxdb_username=$WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME
-token=$WEATHERFLOW_COLLECTOR_TOKEN
+weatherflow_token=$WEATHERFLOW_COLLECTOR_TOKEN
 station_id=$WEATHERFLOW_COLLECTOR_STATION_ID
 
 ##
@@ -53,52 +53,24 @@ influxdb_username=${influxdb_username}
 logcli_host_url=${logcli_host_url}
 loki_client_url=${loki_client_url}
 station_id=${station_id}
-token=${token}
+weatherflow_token=${weatherflow_token}
 weatherflow_collector_version=${weatherflow_collector_version}"
 
 fi
 
 ##
-## Curl Command
-##
-
-if [ "$debug_curl" == "true" ]; then curl=(  ); else curl=( --silent --show-error --fail ); fi
-
-##
 ## Get Stations IDs from Token
 ##
 
-url_stations="https://swd.weatherflow.com/swd/rest/stations?token=${token}"
+url_stations="https://swd.weatherflow.com/swd/rest/stations?token=${weatherflow_token}"
 
 #echo "url_stations=${url_stations}"
 
-response_url_stations=$(curl -si -w "\n%{size_header},%{size_download}" "${url_stations}")
+response_station=$(curl -s "${url_stations}")
 
-#echo ${response_url_stations}
+number_of_devices=$(echo "${response_station}" |jq -r '.stations[] | select(.station_id == '"${station_id}"') | .devices[] | select(.device_type == "AR" or .device_type == "SK" or .device_type == "ST")' | jq -s '. | length')
 
-##
-## Extract the response header size
-##
-
-header_size_stations=$(sed -n '$ s/^\([0-9]*\),.*$/\1/ p' <<< "${response_url_stations}")
-
-##
-## Extract the response body size
-##
-
-body_size_stations=$(sed -n '$ s/^.*,\([0-9]*\)$/\1/ p' <<< "${response_url_stations}")
-
-##
-## Extract the response body
-##
-
-body_station="${response_url_stations:${header_size_stations}:${body_size_stations}}"
-
-#echo "${body_station}"
-
-number_of_devices=$(echo "${body_station}" |jq -r '.stations[] | select(.station_id == '"${station_id}"') | .devices[] | select(.device_type == "AR" or .device_type == "SK" or .device_type == "ST")' | jq -s '. | length')
-
-#echo "${body_station}" | jq -r '.stations[] | select(.location_id == ${station_id}) | .devices'
+#echo "${response_station}" | jq -r '.stations[] | select(.location_id == ${station_id}) | .devices'
 
 echo "${echo_bold}${echo_color_remote_export}${collector_type}:${echo_normal} $(date) - Number of Devices: ${echo_bold}${number_of_devices}${echo_normal}, Station ID: ${station_id}"
 
@@ -111,35 +83,35 @@ for device_number in $(seq 0 $number_of_devices_minus_one) ; do
 
 #echo "device_number=${device_number}"
 
-device_ar=($(echo "${body_station}" | jq -r '.stations[] | select(.station_id == '"${station_id}"') | .devices[] | select(.device_type == "AR") |  .device_id | @sh') )
-device_sk=($(echo "${body_station}" | jq -r '.stations[] | select(.station_id == '"${station_id}"') | .devices[] | select(.device_type == "SK") |  .device_id | @sh') )
-device_st=($(echo "${body_station}" | jq -r '.stations[] | select(.station_id == '"${station_id}"') | .devices[] | select(.device_type == "ST") |  .device_id | @sh') )
+device_ar=($(echo "${response_station}" | jq -r '.stations[] | select(.station_id == '"${station_id}"') | .devices[] | select(.device_type == "AR") |  .device_id | @sh') )
+device_sk=($(echo "${response_station}" | jq -r '.stations[] | select(.station_id == '"${station_id}"') | .devices[] | select(.device_type == "SK") |  .device_id | @sh') )
+device_st=($(echo "${response_station}" | jq -r '.stations[] | select(.station_id == '"${station_id}"') | .devices[] | select(.device_type == "ST") |  .device_id | @sh') )
         
 if [ "$debug" == "true" ]; then echo "${echo_bold}${echo_color_remote_export}${collector_type}:${echo_normal} device_ar=${device_ar[*]} device_sk=${device_sk[*]} device_st=${device_st[*]}" ; fi
 
 if [ -n "${device_ar[${device_number}]}" ]; then
 #echo "station_number: ${station_number} station_id: ${station_id} device_number: ${device_number} device_ar: ${device_ar[${device_number}]}"
-#echo "${body_station}" |jq -r '.stations[] | select(.station_id == '"${station_id}"') | to_entries | .[4,5,6,7,8,9,12] | .key + "=" + "\"" + ( .value|tostring ) + "\""' > remote-export-device_id-"${device_ar[${device_number}]}"-lookup.txt
-#echo "elevation=\"$(echo "${body_station}" | jq -r '.stations[] | select(.station_id == '"${station_id}"') | .station_meta.elevation')\"" >> remote-export-device_id-"${device_ar[${device_number}]}"-lookup.txt
-#echo "hub_sn=\"$(echo "${body_station}" | jq -r '.stations[] | select(.station_id == '"${station_id}"') | .devices[] | select(.device_type == "HB") | .serial_number')\"" >> remote-export-device_id-"${device_ar[${device_number}]}"-lookup.txt
-echo "https://swd.weatherflow.com/swd/rest/observations/device/${device_ar[${device_number}]}?token=${token}&format=csv,${device_ar[${device_number}]}" >> remote-export-url_"${station_id}"-station_list.txt
+#echo "${response_station}" |jq -r '.stations[] | select(.station_id == '"${station_id}"') | to_entries | .[0,1,2,3,4,5,6] | .key + "=" + "\"" + ( .value|tostring ) + "\""' > remote-export-device_id-"${device_ar[${device_number}]}"-lookup.txt
+#echo "elevation=\"$(echo "${response_station}" | jq -r '.stations[] | select(.station_id == '"${station_id}"') | .station_meta.elevation')\"" >> remote-export-device_id-"${device_ar[${device_number}]}"-lookup.txt
+#echo "hub_sn=\"$(echo "${response_station}" | jq -r '.stations[] | select(.station_id == '"${station_id}"') | .devices[] | select(.device_type == "HB") | .serial_number')\"" >> remote-export-device_id-"${device_ar[${device_number}]}"-lookup.txt
+echo "https://swd.weatherflow.com/swd/rest/observations/device/${device_ar[${device_number}]}?token=${weatherflow_token}&format=csv,${device_ar[${device_number}]}" >> remote-export-url_"${station_id}"-station_list.txt
 
 fi
 
 if [ -n "${device_sk[${device_number}]}" ]; then
 #echo "station_number: ${station_number} station_id: ${station_id} device_number: ${device_number} device_sk: ${device_sk[${device_number}]}"
-#echo "${body_station}" |jq -r '.stations[] | select(.station_id == '"${station_id}"') | to_entries | .[4,5,6,7,8,9,12] | .key + "=" + "\"" + ( .value|tostring ) + "\""' > remote-export-device_id-"${device_sk[${device_number}]}"-lookup.txt
-#echo "elevation=\"$(echo "${body_station}" | jq -r '.stations[] | select(.station_id == '"${station_id}"') | .station_meta.elevation')\"" >> remote-export-device_id-"${device_sk[${device_number}]}"-lookup.txt
-#echo "hub_sn=\"$(echo "${body_station}" | jq -r '.stations[] | select(.station_id == '"${station_id}"') | .devices[] | select(.device_type == "HB") | .serial_number')\"" >> remote-export-device_id-"${device_sk[${device_number}]}"-lookup.txt
-echo "https://swd.weatherflow.com/swd/rest/observations/device/${device_sk[${device_number}]}?token=${token}&format=csv,${device_sk[${device_number}]}" >> remote-export-url_"${station_id}"-station_list.txt
+#echo "${response_station}" |jq -r '.stations[] | select(.station_id == '"${station_id}"') | to_entries | .[0,1,2,3,4,5,6] | .key + "=" + "\"" + ( .value|tostring ) + "\""' > remote-export-device_id-"${device_sk[${device_number}]}"-lookup.txt
+#echo "elevation=\"$(echo "${response_station}" | jq -r '.stations[] | select(.station_id == '"${station_id}"') | .station_meta.elevation')\"" >> remote-export-device_id-"${device_sk[${device_number}]}"-lookup.txt
+#echo "hub_sn=\"$(echo "${response_station}" | jq -r '.stations[] | select(.station_id == '"${station_id}"') | .devices[] | select(.device_type == "HB") | .serial_number')\"" >> remote-export-device_id-"${device_sk[${device_number}]}"-lookup.txt
+echo "https://swd.weatherflow.com/swd/rest/observations/device/${device_sk[${device_number}]}?token=${weatherflow_token}&format=csv,${device_sk[${device_number}]}" >> remote-export-url_"${station_id}"-station_list.txt
 fi
 
 if [ -n "${device_st[${device_number}]}" ]; then
 #echo "station_number: ${station_number} station_id: ${station_id} device_number: ${device_number} device_st: ${device_st[${device_number}]}"
-#echo "${body_station}" |jq -r '.stations[] | select(.station_id == '"${station_id}"') | to_entries | .[4,5,6,7,8,9,12] | .key + "=" + "\"" + ( .value|tostring ) + "\""' > remote-export-device_id-"${device_st[${device_number}]}"-lookup.txt
-#echo "elevation=\"$(echo "${body_station}" | jq -r '.stations[] | select(.station_id == '"${station_id}"') | .station_meta.elevation')\"" >> remote-export-device_id-"${device_st[${device_number}]}"-lookup.txt
-#echo "hub_sn=\"$(echo "${body_station}" | jq -r '.stations[] | select(.station_id == '"${station_id}"') | .devices[] | select(.device_type == "HB") | .serial_number')\"" >> remote-export-device_id-"${device_st[${device_number}]}"-lookup.txt
-echo "https://swd.weatherflow.com/swd/rest/observations/device/${device_st[${device_number}]}?token=${token}&format=csv,${device_st[${device_number}]}" >> remote-export-url_"${station_id}"-station_list.txt
+#echo "${response_station}" |jq -r '.stations[] | select(.station_id == '"${station_id}"') | to_entries | .[0,1,2,3,4,5,6] | .key + "=" + "\"" + ( .value|tostring ) + "\""' > remote-export-device_id-"${device_st[${device_number}]}"-lookup.txt
+#echo "elevation=\"$(echo "${response_station}" | jq -r '.stations[] | select(.station_id == '"${station_id}"') | .station_meta.elevation')\"" >> remote-export-device_id-"${device_st[${device_number}]}"-lookup.txt
+#echo "hub_sn=\"$(echo "${response_station}" | jq -r '.stations[] | select(.station_id == '"${station_id}"') | .devices[] | select(.device_type == "HB") | .serial_number')\"" >> remote-export-device_id-"${device_st[${device_number}]}"-lookup.txt
+echo "https://swd.weatherflow.com/swd/rest/observations/device/${device_st[${device_number}]}?token=${weatherflow_token}&format=csv,${device_st[${device_number}]}" >> remote-export-url_"${station_id}"-station_list.txt
 
 fi
 

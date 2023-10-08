@@ -4,7 +4,7 @@
 ## WeatherFlow Collector - weatherflow-collector_details.sh
 ##
 
-weatherflow_collector_version="3.4.0"
+weatherflow_collector_version="4.0.0"
 #grafana_loki_binary_path="./promtail-linux-amd64"
 grafana_loki_binary_path="/usr/bin/promtail"
 debug_sleeping=$WEATHERFLOW_COLLECTOR_DEBUG_SLEEPING
@@ -130,10 +130,12 @@ current_time=$(date +%s)
 
 #echo "${bold}${collector_type}:${normal} time_epoch: ${current_time}"
 
+
 if [ -n "$influxdb_url" ]; then
 
-curl "${curl[@]}" -i -XPOST "${influxdb_url}" -u "${influxdb_username}":"${influxdb_password}" --data-binary "
-weatherflow_system_events,collector_key=${collector_key},collector_type=${collector_type},event="process_start",host_hostname=${host_hostname},source=${function} time_epoch=${current_time}000"
+curl_message="weatherflow_system_events,collector_key=${collector_key},collector_type=${collector_type},event="process_start",host_hostname=${host_hostname},source=${function} time_epoch=${current_time}000";
+
+curl_send_message
 
 fi
 
@@ -204,7 +206,6 @@ function init_progress_full() {
 ## ┴┘└┘└─┘────┴  ┴└─└─┘└─┘┴└─└─┘└─┘└─┘────└  └─┘┴─┘┴─┘
 ##
 
-
 function inc_progress_full() {
 	progress_count_full=$((progress_count_full+1))
 	progress_percent_full=$((100 * progress_count_full / progress_total_full))
@@ -254,4 +255,38 @@ function show_progress_time () {
         ((sec=num))
     fi
     echo -n "${echo_bold}$hour"h "$min"m "$sec"s"${echo_normal}"
+}
+
+
+##
+## ┌─┐┬ ┬┬─┐┬    ┌─┐┌─┐┌┐┌┌┬┐  ┌┬┐┌─┐┌─┐┌─┐┌─┐┌─┐┌─┐
+## │  │ │├┬┘│    └─┐├┤ │││ ││  │││├┤ └─┐└─┐├─┤│ ┬├┤ 
+## └─┘└─┘┴└─┴─┘  └─┘└─┘┘└┘─┴┘  ┴ ┴└─┘└─┘└─┘┴ ┴└─┘└─┘
+##
+
+function curl_send_message() {
+
+#echo "airSensors,sensor_id=TLM0201 temperature=73.97038159354763,humidity=35.23103248356096,co=0.48445310567793615 1630525358 
+#  airSensors,sensor_id=TLM0202 temperature=75.30007505999716,humidity=35.651929918691714,co=0.5141876544505826 1630525358" | gzip > air-sensors.gzip
+
+#curl --request POST \
+#"http://localhost:8086/api/v2/write?org=YOUR_ORG&bucket=YOUR_BUCKET&precision=ns" \
+#  --header "Authorization: Token YOUR_API_TOKEN" \
+#  --header "Content-Encoding: gzip" \
+#  --header "Content-Type: text/plain; charset=utf-8" \
+#  --header "Accept: application/json" \
+#  --data-binary @air-sensors.gzip
+
+
+if [ "$debug_curl" == "true" ]; then curl=(  ); else curl=( --silent --output /dev/null --show-error --fail ); fi
+
+curl "${curl[@]}" --request POST \
+"${influxdb_url}/api/v2/write?org=${influxdb_org}&bucket=${influxdb_bucket}" \
+  --header "Authorization: Token ${influxdb_token}" \
+  --header "Content-Type: text/plain; charset=utf-8" \
+  --header "Accept: application/json" \
+  --data-binary "
+    ${curl_message}
+    "
+
 }

@@ -20,10 +20,11 @@ debug_sleeping=$WEATHERFLOW_COLLECTOR_DEBUG_SLEEPING
 function=$WEATHERFLOW_COLLECTOR_FUNCTION
 healthcheck=$WEATHERFLOW_COLLECTOR_HEALTHCHECK
 host_hostname=$WEATHERFLOW_COLLECTOR_HOST_HOSTNAME
-perf_interval=$WEATHERFLOW_COLLECTOR_PERF_INTERVAL
-influxdb_password=$WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD
+influxdb_bucket=$WEATHERFLOW_COLLECTOR_INFLUXDB_BUCKET
+influxdb_org=$WEATHERFLOW_COLLECTOR_INFLUXDB_ORG
+influxdb_token=$WEATHERFLOW_COLLECTOR_INFLUXDB_TOKEN
 influxdb_url=$WEATHERFLOW_COLLECTOR_INFLUXDB_URL
-influxdb_username=$WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME
+perf_interval=$WEATHERFLOW_COLLECTOR_PERF_INTERVAL
 
 ##
 ## Set Specific Variables
@@ -46,6 +47,10 @@ debug_sleeping=${debug_sleeping}
 function=${function}
 healthcheck=${healthcheck}
 host_hostname=${host_hostname}
+influxdb_bucket=${influxdb_bucket}
+influxdb_org=${influxdb_org}
+influxdb_token=${influxdb_token}
+influxdb_url=${influxdb_url}
 perf_interval=${perf_interval}
 weatherflow_collector_version=${weatherflow_collector_version}"
 
@@ -70,12 +75,6 @@ if [ -z "${host_hostname}" ]; then echo "${echo_bold}${echo_color_host_performan
 ##
 
 process_start
-
-##
-## Curl Command
-##
-
-if [ "$debug" == "true" ]; then curl=(  ); else curl=( --silent --show-error --fail ); fi
 
 ##
 ## Start Host Performance Loop

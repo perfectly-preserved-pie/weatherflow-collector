@@ -20,12 +20,13 @@ function=$WEATHERFLOW_COLLECTOR_FUNCTION
 healthcheck=$WEATHERFLOW_COLLECTOR_HEALTHCHECK
 host_hostname=$WEATHERFLOW_COLLECTOR_HOST_HOSTNAME
 import_days=$WEATHERFLOW_COLLECTOR_IMPORT_DAYS
-influxdb_password=$WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD
+influxdb_bucket=$WEATHERFLOW_COLLECTOR_INFLUXDB_BUCKET
+influxdb_org=$WEATHERFLOW_COLLECTOR_INFLUXDB_ORG
+influxdb_token=$WEATHERFLOW_COLLECTOR_INFLUXDB_TOKEN
 influxdb_url=$WEATHERFLOW_COLLECTOR_INFLUXDB_URL
-influxdb_username=$WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME
 logcli_host_url=$WEATHERFLOW_COLLECTOR_LOGCLI_URL
 loki_client_url=$WEATHERFLOW_COLLECTOR_LOKI_CLIENT_URL
-token=$WEATHERFLOW_COLLECTOR_TOKEN
+weatherflow_token=$WEATHERFLOW_COLLECTOR_TOKEN
 
 ##
 ## Set Specific Variables
@@ -48,22 +49,17 @@ function=${function}
 healthcheck=${healthcheck}
 host_hostname=${host_hostname}
 import_days=${import_days}
-influxdb_password=${influxdb_password}
+influxdb_bucket=${influxdb_bucket}
+influxdb_org=${influxdb_org}
+influxdb_token=${influxdb_token}
 influxdb_url=${influxdb_url}
-influxdb_username=${influxdb_username}
 logcli_host_url=${logcli_host_url}
 loki_client_url=${loki_client_url}
 threads=${threads}
-token=${token}
+weatherflow_token=${weatherflow_token}
 weatherflow_collector_version=${weatherflow_collector_version}"
 
 fi
-
-##
-## Set InfluxDB Precision to seconds
-##
-
-#if [ -n "${influxdb_url}" ]; then influxdb_url="${influxdb_url}&precision=s"; fi
 
 ##
 ## Send Startup Event Timestamp to InfluxDB
@@ -72,39 +68,17 @@ fi
 process_start
 
 ##
-## Curl Command
-##
-
-if [ "$debug_curl" == "true" ]; then curl=(  ); else curl=( --silent --show-error --fail ); fi
-
-##
 ## Get Stations IDs from Token
 ##
 
-url_stations="https://swd.weatherflow.com/swd/rest/stations?token=${token}"
+url_stations="https://swd.weatherflow.com/swd/rest/stations?token=${weatherflow_token}"
 
-#echo "url_stations=${url_stations}"
+response_station=$(curl -s "${url_stations}")
 
-response_url_stations=$(curl -si -w "\n%{size_header},%{size_download}" "${url_stations}")
+#echo "${response_station}"
 
-#echo ${response_url_stations}
-
-# Extract the response header size
-header_size_stations=$(sed -n '$ s/^\([0-9]*\),.*$/\1/ p' <<< "${response_url_stations}")
-
-# Extract the response body size
-body_size_stations=$(sed -n '$ s/^.*,\([0-9]*\)$/\1/ p' <<< "${response_url_stations}")
-
-# Extract the response headers
-#headers_station="${response_url_stations:0:${header_size_stations}}"
-
-# Extract the response body
-body_station="${response_url_stations:${header_size_stations}:${body_size_stations}}"
-
-#echo "${body_station}"
-
-number_of_stations=$(echo "${body_station}" |jq '.stations | length')
-station_sns=($(echo "${body_station}" | jq -r '.stations[].devices[] | select(.device_type == "HB") | .serial_number') )
+number_of_stations=$(echo "${response_station}" |jq '.stations | length')
+station_sns=($(echo "${response_station}" | jq -r '.stations[].devices[] | select(.device_type == "HB") | .serial_number') )
 
 #echo "Number of Stations: ${number_of_stations}"
 
@@ -112,8 +86,8 @@ number_of_stations_minus_one=$((number_of_stations-1))
 
 for station_number in $(seq 0 $number_of_stations_minus_one) ; do
 
-echo "${body_station}" | jq -r '.stations['"${station_number}"'] | {"location_id", "station_id", "name", "public_name", "latitude", "longitude", "timezone"}' | jq -r '. | to_entries | .[] | .key + "=" + "\"" + ( .value|tostring ) + "\""' > local-udp-hub_sn-"${station_sns[${station_number}]}"-lookup.txt
-echo "elevation=\"$(echo "${body_station}" |jq -r '.stations['"${station_number}"'].station_meta.elevation')\"" >> local-udp-hub_sn-"${station_sns[${station_number}]}"-lookup.txt
+echo "${response_station}" | jq -r '.stations['"${station_number}"'] | {"location_id", "station_id", "name", "public_name", "latitude", "longitude", "timezone"}' | jq -r '. | to_entries | .[] | .key + "=" + "\"" + ( .value|tostring ) + "\""' > local-udp-hub_sn-"${station_sns[${station_number}]}"-lookup.txt
+echo "elevation=\"$(echo "${response_station}" |jq -r '.stations['"${station_number}"'].station_meta.elevation')\"" >> local-udp-hub_sn-"${station_sns[${station_number}]}"-lookup.txt
     
 done
 #echo "${socket_json}"
