@@ -5,13 +5,15 @@
 ##
 
 import_days=$WEATHERFLOW_COLLECTOR_IMPORT_DAYS
-influxdb_password=$WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD
+influxdb_bucket=$WEATHERFLOW_COLLECTOR_INFLUXDB_BUCKET
+influxdb_org=$WEATHERFLOW_COLLECTOR_INFLUXDB_ORG
+influxdb_token=$WEATHERFLOW_COLLECTOR_INFLUXDB_TOKEN
 influxdb_url=$WEATHERFLOW_COLLECTOR_INFLUXDB_URL
-influxdb_username=$WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME
 logcli_host_url=$WEATHERFLOW_COLLECTOR_LOGCLI_URL
 loki_client_url=$WEATHERFLOW_COLLECTOR_LOKI_CLIENT_URL
 threads=$WEATHERFLOW_COLLECTOR_THREADS
-token=$WEATHERFLOW_COLLECTOR_TOKEN
+weatherflow_token=$WEATHERFLOW_COLLECTOR_TOKEN
+
 
 collector_key=$(echo "${WEATHERFLOW_COLLECTOR_TOKEN}" | awk -F"-" '{print $1}')
 
@@ -50,30 +52,29 @@ echo "${echo_bold}WeatherFlow Collector${echo_normal} (generate_docker-compose.s
 
 collector_key=${echo_bold}${collector_key}${echo_normal} (using partial API key)
 import_days=${echo_bold}${import_days}${echo_normal}
-influxdb_password=${echo_bold}${influxdb_password}${echo_normal}
+influxdb_bucket=${echo_bold}${influxdb_bucket}${echo_normal}
+influxdb_org=${echo_bold}${influxdb_org}${echo_normal}
+influxdb_token=${echo_bold}${influxdb_token}${echo_normal}
 influxdb_url=${echo_bold}${influxdb_url}${echo_normal}
 influxdb_username=${echo_bold}${influxdb_username}${echo_normal}
 logcli_host_url=${echo_bold}${logcli_host_url}${echo_normal}
 loki_client_url=${echo_bold}${loki_client_url}${echo_normal}
 threads=${echo_bold}${threads}${echo_normal}
-token=${echo_bold}${token}${echo_normal}
+weatherflow_token=${echo_bold}${weatherflow_token}${echo_normal}
 "
 
 if [ -z "${import_days}" ]; then echo "${echo_bold}${echo_color_weatherflow}weatherflow-collector:${echo_normal} ${echo_bold}WEATHERFLOW_COLLECTOR_IMPORT_DAYS${echo_normal} variable was not set. Setting defaults: ${echo_bold}10${echo_normal} days"; import_days="10"; fi
-
-if [ -z "${influxdb_password}" ]; then echo "${echo_bold}${echo_color_weatherflow}weatherflow-collector:${echo_normal} ${echo_bold}WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD${echo_normal} was not set. Setting defaults: ${echo_bold}password${echo_normal}"; influxdb_password="password"; fi
-
-if [ -z "${influxdb_url}" ]; then echo "${echo_bold}${echo_color_weatherflow}weatherflow-collector:${echo_normal} ${echo_bold}WEATHERFLOW_COLLECTOR_INFLUXDB_URL${echo_normal} was not set. Setting defaults: ${echo_bold}http://influxdb:8086/write?db=weatherflow${echo_normal}"; influxdb_url="http://influxdb:8086/write?db=weatherflow" ; fi
-
-if [ -z "${influxdb_username}" ]; then echo "${echo_bold}${echo_color_weatherflow}weatherflow-collector:${echo_normal} ${echo_bold}WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME${echo_normal} was not set. Setting defaults: ${echo_bold}influxdb${echo_normal}"; influxdb_username="influxdb"; fi
-
+if [ -z "${influxdb_bucket}" ]; then echo "${echo_bold}${echo_color_weatherflow}weatherflow-collector:${echo_normal} ${echo_bold}WEATHERFLOW_COLLECTOR_INFLUXDB_BUCKET${echo_normal} was not set. Setting defaults: ${echo_bold}bucket${echo_normal}"; influxdb_bucket="BUCKET"; fi
+if [ -z "${influxdb_org}" ]; then echo "${echo_bold}${echo_color_weatherflow}weatherflow-collector:${echo_normal} ${echo_bold}WEATHERFLOW_COLLECTOR_INFLUXDB_ORG${echo_normal} was not set. Setting defaults: ${echo_bold}org${echo_normal}"; influxdb_org="ORG"; fi
+if [ -z "${influxdb_token}" ]; then echo "${echo_bold}${echo_color_weatherflow}weatherflow-collector:${echo_normal} ${echo_bold}WEATHERFLOW_COLLECTOR_INFLUXDB_TOKEN${echo_normal} was not set. Setting defaults: ${echo_bold}token${echo_normal}"; influxdb_token="TOKEN"; fi
+if [ -z "${influxdb_url}" ]; then echo "${echo_bold}${echo_color_weatherflow}weatherflow-collector:${echo_normal} ${echo_bold}WEATHERFLOW_COLLECTOR_INFLUXDB_URL${echo_normal} was not set. Setting defaults: ${echo_bold}http://influxdb:8086/write?db=weatherflow${echo_normal}"; influxdb_url="http://influxdb:8086/" ; fi
 if [ -z "${threads}" ]; then echo "${echo_bold}${echo_color_weatherflow}weatherflow-collector:${echo_normal} ${echo_bold}WEATHERFLOW_COLLECTOR_THREADS${echo_normal} was not set. Setting defaults: ${echo_bold}4${echo_normal} threads."; threads="4"; fi
+if [ -z "${weatherflow_token}" ]; then echo "${echo_bold}${echo_color_weatherflow}weatherflow-collector:${echo_normal} ${echo_bold}WEATHERFLOW_COLLECTOR_TOKEN${echo_normal} was not set. Missing authentication token. Please provide your token as an environmental variable."
 
-if [ -z "${token}" ]; then echo "${echo_bold}${echo_color_weatherflow}weatherflow-collector:${echo_normal} ${echo_bold}WEATHERFLOW_COLLECTOR_TOKEN${echo_normal} was not set. Missing authentication token. Please provide your token as an environmental variable."
 
 else
 
-url_stations="https://swd.weatherflow.com/swd/rest/stations?token=${token}"
+url_stations="https://swd.weatherflow.com/swd/rest/stations?token=${weatherflow_token}"
 
 #echo "url_stations=${url_stations}"
 
@@ -240,10 +241,11 @@ echo "services:
       WEATHERFLOW_COLLECTOR_DISABLE_REMOTE_REST: \"false\"
       WEATHERFLOW_COLLECTOR_DISABLE_REMOTE_SOCKET: \"false\"
       WEATHERFLOW_COLLECTOR_HEALTHCHECK: \"true\"
-      WEATHERFLOW_COLLECTOR_HOST_HOSTNAME: $(hostname)
-      WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD: ${influxdb_password}
-      WEATHERFLOW_COLLECTOR_INFLUXDB_URL: ${influxdb_url}
-      WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME: ${influxdb_username}" > docker-compose.yml
+      WEATHERFLOW_COLLECTOR_HOST_HOSTNAME: \"$(hostname)\"
+      WEATHERFLOW_COLLECTOR_INFLUXDB_BUCKET: \"${influxdb_bucket}\"
+      WEATHERFLOW_COLLECTOR_INFLUXDB_ORG: \"${influxdb_org}\"
+      WEATHERFLOW_COLLECTOR_INFLUXDB_TOKEN: \"${influxdb_token}\"
+      WEATHERFLOW_COLLECTOR_INFLUXDB_URL: \"${influxdb_url}\"" > docker-compose.yml
 
 if [ -n "$loki_client_url" ]
 
@@ -254,7 +256,7 @@ echo "      WEATHERFLOW_COLLECTOR_LOKI_CLIENT_URL: ${loki_client_url}" >> docker
 fi
 
 echo "      WEATHERFLOW_COLLECTOR_THREADS: ${threads}
-      WEATHERFLOW_COLLECTOR_TOKEN: ${token}
+      WEATHERFLOW_COLLECTOR_TOKEN: ${weatherflow_token}
     image: lux4rd0/weatherflow-collector:latest
     ports:
     - protocol: udp
@@ -280,13 +282,14 @@ echo "docker run --rm \\
   -e WEATHERFLOW_COLLECTOR_HEALTHCHECK=true \\
   -e WEATHERFLOW_COLLECTOR_HOST_HOSTNAME=$(hostname) \\
   -e WEATHERFLOW_COLLECTOR_IMPORT_DAYS=${import_days} \\
-  -e WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD=${influxdb_password} \\
+  -e WEATHERFLOW_COLLECTOR_INFLUXDB_BUCKET=${influxdb_bucket} \\
+  -e WEATHERFLOW_COLLECTOR_INFLUXDB_ORG=${influxdb_org} \\
+  -e WEATHERFLOW_COLLECTOR_INFLUXDB_TOKEN=${influxdb_token} \\
   -e WEATHERFLOW_COLLECTOR_INFLUXDB_URL=${influxdb_url} \\
-  -e WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME=${influxdb_username} \\
   -e WEATHERFLOW_COLLECTOR_LOGCLI_URL=${logcli_host_url} \\
   -e WEATHERFLOW_COLLECTOR_STATION_ID=\"${station_id[$station_number]}\" \\
   -e WEATHERFLOW_COLLECTOR_THREADS=${threads} \\
-  -e WEATHERFLOW_COLLECTOR_TOKEN=${token} \\
+  -e WEATHERFLOW_COLLECTOR_TOKEN=${weatherflow_token} \\
   lux4rd0/weatherflow-collector:latest
 
 " > "${FILE_import_remote[$station_number]}"
@@ -317,13 +320,14 @@ echo "docker run --rm \\
   -e WEATHERFLOW_COLLECTOR_HEALTHCHECK=true \\
   -e WEATHERFLOW_COLLECTOR_HOST_HOSTNAME=$(hostname) \\
   -e WEATHERFLOW_COLLECTOR_IMPORT_DAYS=${import_days} \\
-  -e WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD=${influxdb_password} \\
+  -e WEATHERFLOW_COLLECTOR_INFLUXDB_BUCKET=${influxdb_bucket} \\
+  -e WEATHERFLOW_COLLECTOR_INFLUXDB_ORG=${influxdb_org} \\
+  -e WEATHERFLOW_COLLECTOR_INFLUXDB_TOKEN=${influxdb_token} \\
   -e WEATHERFLOW_COLLECTOR_INFLUXDB_URL=${influxdb_url} \\
-  -e WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME=${influxdb_username} \\
   -e WEATHERFLOW_COLLECTOR_LOGCLI_URL=${logcli_host_url} \\
   -e WEATHERFLOW_COLLECTOR_STATION_NAME=\"${station_name[$station_number]}\" \\
   -e WEATHERFLOW_COLLECTOR_THREADS=${threads} \\
-  -e WEATHERFLOW_COLLECTOR_TOKEN=${token} \\
+  -e WEATHERFLOW_COLLECTOR_TOKEN=${weatherflow_token} \\
   lux4rd0/weatherflow-collector:latest
 
 " > "${FILE_import_loki_remote_forecast[$station_number]}"
@@ -346,13 +350,14 @@ echo "docker run --rm \\
   -e WEATHERFLOW_COLLECTOR_HEALTHCHECK=true \\
   -e WEATHERFLOW_COLLECTOR_HOST_HOSTNAME=$(hostname) \\
   -e WEATHERFLOW_COLLECTOR_IMPORT_DAYS=${import_days} \\
-  -e WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD=${influxdb_password} \\
+  -e WEATHERFLOW_COLLECTOR_INFLUXDB_BUCKET=${influxdb_bucket} \\
+  -e WEATHERFLOW_COLLECTOR_INFLUXDB_ORG=${influxdb_org} \\
+  -e WEATHERFLOW_COLLECTOR_INFLUXDB_TOKEN=${influxdb_token} \\
   -e WEATHERFLOW_COLLECTOR_INFLUXDB_URL=${influxdb_url} \\
-  -e WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME=${influxdb_username} \\
   -e WEATHERFLOW_COLLECTOR_LOGCLI_URL=${logcli_host_url} \\
   -e WEATHERFLOW_COLLECTOR_STATION_NAME=\"${station_name[$station_number]}\" \\
   -e WEATHERFLOW_COLLECTOR_THREADS=${threads} \\
-  -e WEATHERFLOW_COLLECTOR_TOKEN=${token} \\
+  -e WEATHERFLOW_COLLECTOR_TOKEN=${weatherflow_token} \\
   lux4rd0/weatherflow-collector:latest
 
 " > "${FILE_import_loki_remote_rest[$station_number]}"
@@ -375,13 +380,14 @@ echo "docker run --rm \\
   -e WEATHERFLOW_COLLECTOR_HEALTHCHECK=true \\
   -e WEATHERFLOW_COLLECTOR_HOST_HOSTNAME=$(hostname) \\
   -e WEATHERFLOW_COLLECTOR_IMPORT_DAYS=${import_days} \\
-  -e WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD=${influxdb_password} \\
+  -e WEATHERFLOW_COLLECTOR_INFLUXDB_BUCKET=${influxdb_bucket} \\
+  -e WEATHERFLOW_COLLECTOR_INFLUXDB_ORG=${influxdb_org} \\
+  -e WEATHERFLOW_COLLECTOR_INFLUXDB_TOKEN=${influxdb_token} \\
   -e WEATHERFLOW_COLLECTOR_INFLUXDB_URL=${influxdb_url} \\
-  -e WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME=${influxdb_username} \\
   -e WEATHERFLOW_COLLECTOR_LOGCLI_URL=${logcli_host_url} \\
   -e WEATHERFLOW_COLLECTOR_STATION_NAME=\"${station_name[$station_number]}\" \\
   -e WEATHERFLOW_COLLECTOR_THREADS=${threads} \\
-  -e WEATHERFLOW_COLLECTOR_TOKEN=${token} \\
+  -e WEATHERFLOW_COLLECTOR_TOKEN=${weatherflow_token} \\
   lux4rd0/weatherflow-collector:latest
 
 " > "${FILE_import_loki_remote_socket[$station_number]}"
@@ -404,13 +410,14 @@ echo "docker run --rm \\
   -e WEATHERFLOW_COLLECTOR_HEALTHCHECK=true \\
   -e WEATHERFLOW_COLLECTOR_HOST_HOSTNAME=$(hostname) \\
   -e WEATHERFLOW_COLLECTOR_IMPORT_DAYS=${import_days} \\
-  -e WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD=${influxdb_password} \\
+  -e WEATHERFLOW_COLLECTOR_INFLUXDB_BUCKET=${influxdb_bucket} \\
+  -e WEATHERFLOW_COLLECTOR_INFLUXDB_ORG=${influxdb_org} \\
+  -e WEATHERFLOW_COLLECTOR_INFLUXDB_TOKEN=${influxdb_token} \\
   -e WEATHERFLOW_COLLECTOR_INFLUXDB_URL=${influxdb_url} \\
-  -e WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME=${influxdb_username} \\
   -e WEATHERFLOW_COLLECTOR_LOGCLI_URL=${logcli_host_url} \\
   -e WEATHERFLOW_COLLECTOR_STATION_NAME=\"${station_name[$station_number]}\" \\
   -e WEATHERFLOW_COLLECTOR_THREADS=${threads} \\
-  -e WEATHERFLOW_COLLECTOR_TOKEN=${token} \\
+  -e WEATHERFLOW_COLLECTOR_TOKEN=${weatherflow_token} \\
   lux4rd0/weatherflow-collector:latest
 
 " > "${FILE_import_loki_local_udp[$station_number]}"
